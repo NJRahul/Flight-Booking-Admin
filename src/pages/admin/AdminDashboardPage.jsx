@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -7,9 +7,10 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, Ticket, Plane, Users, IndianRupee,
-  AlertTriangle, RefreshCw, CheckCircle,
+  AlertTriangle, RefreshCw, CheckCircle, Wifi, WifiOff,
 } from 'lucide-react';
 import { adminApi } from '../../api/axios';
+import useAdminSocket from '../../hooks/useAdminSocket';
 
 const PERIOD_OPTIONS = [
   { label: '7D', value: '7d' },
@@ -93,6 +94,9 @@ export default function AdminDashboardPage() {
   const [recentUsers, setRecentUsers] = useState([]);
   const [revPeriod, setRevPeriod] = useState('30d');
   const [loading, setLoading] = useState(true);
+  const debounceRef = useRef(null);
+
+  const { isConnected, lastEvent } = useAdminSocket();
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -117,6 +121,25 @@ export default function AdminDashboardPage() {
   }, [revPeriod]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Auto-refresh KPIs when an admin:stats event arrives (debounced 3s)
+  useEffect(() => {
+    if (!lastEvent) return;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      // Refresh only stats + recent data (not charts — avoids layout flash)
+      Promise.all([
+        adminApi.get('/stats'),
+        adminApi.get('/recent-bookings'),
+        adminApi.get('/recent-users'),
+      ]).then(([s, b, u]) => {
+        setStats(s.data.data);
+        setRecentBookings(b.data.data?.bookings || []);
+        setRecentUsers(u.data.data?.users || []);
+      }).catch(() => {});
+    }, 3000);
+    return () => clearTimeout(debounceRef.current);
+  }, [lastEvent]);
 
   if (loading) return <LoadingSkeleton />;
 
@@ -185,13 +208,34 @@ export default function AdminDashboardPage() {
             {greeting}, Admin · {format(new Date(), 'EEEE, dd MMMM yyyy')}
           </p>
         </div>
-        <button
-          onClick={fetchAll}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary-600 transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+            isConnected ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+          }`}>
+            {isConnected ? (
+              <>
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
+                </span>
+                <Wifi className="w-3 h-3" />
+                Live
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-3 h-3" />
+                Offline
+              </>
+            )}
+          </div>
+          <button
+            onClick={fetchAll}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary-600 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}

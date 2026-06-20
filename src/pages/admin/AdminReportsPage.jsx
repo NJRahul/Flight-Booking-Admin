@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { adminApi } from '../../api/axios';
+import useAdminSocket from '../../hooks/useAdminSocket';
 import toast from 'react-hot-toast';
 
 // ─── Color Palettes ───────────────────────────────────────────────────────────
@@ -29,12 +30,10 @@ const fmtDate = (d) => { try { return format(new Date(d), 'MMM dd'); } catch { r
 const fmtRevenue = (v) => `₹${(v / 1000).toFixed(1)}k`;
 const fmtINR = (v) => `₹${Number(v).toLocaleString('en-IN')}`;
 
-// ─── Section Title ────────────────────────────────────────────────────────────
 function SectionTitle({ children }) {
   return <h2 className="text-base font-bold text-gray-800 mb-1">{children}</h2>;
 }
 
-// ─── Loading Spinner ──────────────────────────────────────────────────────────
 function LoadingSpinner() {
   return (
     <div className="min-h-[400px] flex flex-col items-center justify-center gap-3 text-gray-400">
@@ -44,7 +43,6 @@ function LoadingSpinner() {
   );
 }
 
-// ─── Empty Legend for Pie/Donut ───────────────────────────────────────────────
 function MiniLegend({ items, colorMap }) {
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
@@ -67,20 +65,47 @@ export default function AdminReportsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('30d');
+  const [lastRefreshed, setLastRefreshed] = useState(null);
+  const [secondsAgo, setSecondsAgo] = useState(0);
+  const debounceRef = useRef(null);
 
-  const fetchReports = async () => {
+  const { isConnected, lastEvent } = useAdminSocket();
+
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
       const r = await adminApi.get(`/reports?period=${period}`);
       setData(r.data.data);
+      setLastRefreshed(Date.now());
     } catch {
       toast.error('Failed to load reports');
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
 
-  useEffect(() => { fetchReports(); }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Fetch on period change
+  useEffect(() => { fetchReports(); }, [fetchReports]);
+
+  // Auto-refresh when admin:stats event arrives (debounced 3s)
+  useEffect(() => {
+    if (!lastEvent) return;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchReports();
+      toast.success('Live data updated', { duration: 2000, id: 'live-update' });
+    }, 3000);
+    return () => clearTimeout(debounceRef.current);
+  }, [lastEvent, fetchReports]);
+
+  // "X seconds ago" counter
+  useEffect(() => {
+    if (!lastRefreshed) return;
+    const interval = setInterval(() => {
+      setSecondsAgo(Math.floor((Date.now() - lastRefreshed) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lastRefreshed]);
 
   // ── Chart data transforms ──────────────────────────────────────────────────
   const revenueChartData = (data?.revenueByDay || []).map(d => ({
@@ -122,7 +147,36 @@ export default function AdminReportsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <h1 className="text-2xl font-bold text-gray-900 font-display">Reports &amp; Analytics</h1>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 font-display">Reports &amp; Analytics</h1>
+          {lastRefreshed && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              Last updated {secondsAgo}s ago
+            </p>
+          )}
+        </div>
+        {/* Live indicator */}
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
+          isConnected ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+        }`}>
+          {isConnected ? (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              <Wifi className="w-3.5 h-3.5" />
+              Live
+            </>
+          ) : (
+            <>
+              <WifiOff className="w-3.5 h-3.5" />
+              Offline
+            </>
+          )}
+        </div>
+      </div>
 
       {/* Period switcher */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -146,14 +200,15 @@ export default function AdminReportsPage() {
         ))}
         <button
           onClick={fetchReports}
-          className="ml-auto flex items-center gap-2 text-sm text-gray-500 hover:text-primary-600 transition-colors"
+          disabled={loading}
+          className="ml-auto flex items-center gap-2 text-sm text-gray-500 hover:text-primary-600 transition-colors disabled:opacity-50"
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
       </div>
 
-      {loading ? (
+      {loading && !data ? (
         <LoadingSpinner />
       ) : data === null ? (
         <div className="card p-12 text-center text-gray-400">
@@ -166,60 +221,44 @@ export default function AdminReportsPage() {
             {/* Revenue by Day — area chart */}
             <div className="lg:col-span-2 card p-5">
               <SectionTitle>Revenue by Day</SectionTitle>
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={revenueChartData}>
-                  <defs>
-                    <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={fmtRevenue}
-                  />
-                  <Tooltip formatter={(v) => [fmtINR(v), 'Revenue']} />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#4F46E5"
-                    strokeWidth={2}
-                    fill="url(#revGrad)"
-                    dot={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {revenueChartData.length === 0 ? (
+                <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm">No revenue data for this period</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={revenueChartData}>
+                    <defs>
+                      <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={fmtRevenue} />
+                    <Tooltip formatter={(v) => [fmtINR(v), 'Revenue']} />
+                    <Area type="monotone" dataKey="revenue" stroke="#4F46E5" strokeWidth={2} fill="url(#revGrad)" dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
 
             {/* Revenue by Airline — pie */}
             <div className="card p-5">
               <SectionTitle>Revenue by Airline</SectionTitle>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={airlineChartData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    dataKey="revenue"
-                    nameKey="name"
-                  >
-                    {airlineChartData.map((_, i) => (
-                      <Cell key={i} fill={AIRLINE_COLORS[i % AIRLINE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => fmtINR(v)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+              {airlineChartData.length === 0 ? (
+                <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm">No data</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={airlineChartData} cx="50%" cy="50%" outerRadius={80} dataKey="revenue" nameKey="name">
+                      {airlineChartData.map((_, i) => (
+                        <Cell key={i} fill={AIRLINE_COLORS[i % AIRLINE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => fmtINR(v)} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -228,24 +267,18 @@ export default function AdminReportsPage() {
             {/* Bookings by Day — bar chart */}
             <div className="card p-5">
               <SectionTitle>Bookings by Day</SectionTitle>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={bookingsChartData}>
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                    allowDecimals={false}
-                  />
-                  <Tooltip />
-                  <Bar dataKey="bookings" fill="#4F46E5" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {bookingsChartData.length === 0 ? (
+                <div className="h-[200px] flex items-center justify-center text-gray-400 text-sm">No booking data for this period</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={bookingsChartData}>
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="bookings" fill="#4F46E5" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
 
             {/* By Status + By Class — two donuts side by side */}
@@ -253,103 +286,81 @@ export default function AdminReportsPage() {
               {/* By Status */}
               <div className="card p-4">
                 <SectionTitle>By Status</SectionTitle>
-                <ResponsiveContainer width="100%" height={150}>
-                  <PieChart>
-                    <Pie
-                      data={statusChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={65}
-                      dataKey="value"
-                    >
-                      {statusChartData.map((d, i) => (
-                        <Cell key={i} fill={STATUS_COLORS[d.name] || '#9ca3af'} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-                <MiniLegend items={statusChartData} colorMap={STATUS_COLORS} />
+                {statusChartData.length === 0 ? (
+                  <div className="h-[150px] flex items-center justify-center text-gray-400 text-xs">No data</div>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={150}>
+                      <PieChart>
+                        <Pie data={statusChartData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} dataKey="value">
+                          {statusChartData.map((d, i) => (
+                            <Cell key={i} fill={STATUS_COLORS[d.name] || '#9ca3af'} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <MiniLegend items={statusChartData} colorMap={STATUS_COLORS} />
+                  </>
+                )}
               </div>
 
               {/* By Class */}
               <div className="card p-4">
                 <SectionTitle>By Class</SectionTitle>
-                <ResponsiveContainer width="100%" height={150}>
-                  <PieChart>
-                    <Pie
-                      data={classChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={65}
-                      dataKey="value"
-                    >
-                      {classChartData.map((d, i) => (
-                        <Cell key={i} fill={CLASS_COLORS[d.name] || PAYMENT_COLORS[i % PAYMENT_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-                <MiniLegend items={classChartData} colorMap={CLASS_COLORS} />
+                {classChartData.length === 0 ? (
+                  <div className="h-[150px] flex items-center justify-center text-gray-400 text-xs">No data</div>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={150}>
+                      <PieChart>
+                        <Pie data={classChartData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} dataKey="value">
+                          {classChartData.map((d, i) => (
+                            <Cell key={i} fill={CLASS_COLORS[d.name] || PAYMENT_COLORS[i % PAYMENT_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <MiniLegend items={classChartData} colorMap={CLASS_COLORS} />
+                  </>
+                )}
               </div>
             </div>
           </div>
 
-          {/* ── SECTION 3: Route Performance ─────────────────────────────── */}
-          <div className="card p-5">
-            <SectionTitle>Revenue by Airline (Horizontal)</SectionTitle>
-            <ResponsiveContainer
-              width="100%"
-              height={Math.max(150, airlineChartData.length * 40)}
-            >
-              <BarChart data={airlineChartData} layout="vertical">
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 11 }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={fmtRevenue}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fontSize: 11 }}
-                  tickLine={false}
-                  axisLine={false}
-                  width={80}
-                />
-                <Tooltip formatter={(v) => fmtINR(v)} />
-                <Bar dataKey="revenue" fill="#4F46E5" radius={[0, 3, 3, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {/* ── SECTION 3: Revenue by Airline (Horizontal Bar) ───────────── */}
+          {airlineChartData.length > 0 && (
+            <div className="card p-5">
+              <SectionTitle>Revenue by Airline</SectionTitle>
+              <ResponsiveContainer width="100%" height={Math.max(150, airlineChartData.length * 40)}>
+                <BarChart data={airlineChartData} layout="vertical">
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={fmtRevenue} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={80} />
+                  <Tooltip formatter={(v) => fmtINR(v)} />
+                  <Bar dataKey="revenue" fill="#4F46E5" radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           {/* ── SECTION 4: User Analytics ─────────────────────────────────── */}
           <div className="grid lg:grid-cols-2 gap-4">
             {/* Sign-ups by day */}
             <div className="card p-5">
               <SectionTitle>User Sign-ups by Day</SectionTitle>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={signupChartData}>
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                    allowDecimals={false}
-                  />
-                  <Tooltip />
-                  <Bar dataKey="users" fill="#8b5cf6" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {signupChartData.length === 0 ? (
+                <div className="h-[200px] flex items-center justify-center text-gray-400 text-sm">No sign-up data for this period</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={signupChartData}>
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="users" fill="#8b5cf6" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
 
             {/* Top users by bookings */}
@@ -371,16 +382,12 @@ export default function AdminReportsPage() {
                         <td className="py-2 font-medium text-gray-900">{u.name}</td>
                         <td className="py-2 text-gray-500 text-xs">{u.email}</td>
                         <td className="py-2 text-center text-gray-700">{u.count}</td>
-                        <td className="py-2 text-right font-medium text-gray-900">
-                          {fmtINR(u.spent)}
-                        </td>
+                        <td className="py-2 text-right font-medium text-gray-900">{fmtINR(u.spent)}</td>
                       </tr>
                     ))}
                     {(data?.topUsers || []).length === 0 && (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-sm text-gray-400">
-                          No user data available
-                        </td>
+                        <td colSpan={5} className="py-8 text-center text-sm text-gray-400">No user data available</td>
                       </tr>
                     )}
                   </tbody>
@@ -394,55 +401,40 @@ export default function AdminReportsPage() {
             {/* Payment methods — donut */}
             <div className="card p-5">
               <SectionTitle>Payment Methods</SectionTitle>
-              <div className="flex flex-col items-center">
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie
-                      data={paymentChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={80}
-                      dataKey="value"
-                    >
-                      {paymentChartData.map((_, i) => (
-                        <Cell key={i} fill={PAYMENT_COLORS[i % PAYMENT_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              {paymentChartData.length === 0 ? (
+                <div className="h-[200px] flex items-center justify-center text-gray-400 text-sm">No payment data</div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie data={paymentChartData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value">
+                        {paymentChartData.map((_, i) => (
+                          <Cell key={i} fill={PAYMENT_COLORS[i % PAYMENT_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
 
             {/* Refunds by day — line chart */}
             <div className="card p-5">
               <SectionTitle>Refunds by Day</SectionTitle>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={refundChartData}>
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={fmtRevenue}
-                  />
-                  <Tooltip formatter={(v) => [fmtINR(v), 'Refunded']} />
-                  <Line
-                    type="monotone"
-                    dataKey="amount"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {refundChartData.length === 0 ? (
+                <div className="h-[200px] flex items-center justify-center text-gray-400 text-sm">No refund data for this period</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={refundChartData}>
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={fmtRevenue} />
+                    <Tooltip formatter={(v) => [fmtINR(v), 'Refunded']} />
+                    <Line type="monotone" dataKey="amount" stroke="#ef4444" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </>
