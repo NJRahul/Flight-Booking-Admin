@@ -211,13 +211,13 @@ export default function AdminLayout() {
           <Breadcrumb />
         </div>
 
-        <div className="flex-1 flex justify-center">
+        <div className="flex-1 px-3">
           <button
             onClick={() => setSearchOpen(true)}
-            className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm text-gray-400 transition-colors max-w-xs w-full"
+            className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm text-gray-400 transition-colors w-full max-w-md"
           >
             <Search className="w-4 h-4 shrink-0" />
-            <span className="flex-1 text-left">Search flights, bookings, users...</span>
+            <span className="flex-1 text-left truncate">Search flights, bookings, users...</span>
             <kbd className="text-xs bg-white border border-gray-200 rounded px-1.5 py-0.5 font-mono shrink-0">
               Ctrl K
             </kbd>
