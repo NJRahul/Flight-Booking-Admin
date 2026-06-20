@@ -207,10 +207,6 @@ export default function AdminLayout() {
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="hidden sm:block">
-          <Breadcrumb />
-        </div>
-
         <div className="flex-1 px-3">
           <button
             onClick={() => setSearchOpen(true)}
@@ -254,7 +250,7 @@ export default function AdminLayout() {
       {/* Main Content */}
       <main className="ml-0 lg:ml-64 min-h-screen bg-gray-50">
         <div className="h-14" />
-        <div className="p-6">
+        <div className="p-6 pt-4">
           <Outlet />
         </div>
       </main>
