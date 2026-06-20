@@ -224,7 +224,7 @@ export default function AdminLayout() {
           </button>
         </div>
 
-        <div className="flex items-center gap-3 ml-auto">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setSearchOpen(true)}
             className="md:hidden p-2 text-gray-500 hover:text-gray-700 transition-colors"

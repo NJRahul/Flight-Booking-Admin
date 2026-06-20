@@ -409,9 +409,9 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex items-center gap-3">
         {/* Search */}
-        <div className="relative flex-1 min-w-[220px] max-w-xs">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -426,7 +426,7 @@ export default function AdminUsersPage() {
         <select
           value={filterRole}
           onChange={e => { setFilterRole(e.target.value); setPage(1); }}
-          className="select-field min-w-[130px]"
+          className="select-field w-32 flex-shrink-0"
         >
           <option value="">All Roles</option>
           <option value="user">User</option>
@@ -437,7 +437,7 @@ export default function AdminUsersPage() {
         <select
           value={filterActive}
           onChange={e => { setFilterActive(e.target.value); setPage(1); }}
-          className="select-field min-w-[130px]"
+          className="select-field w-32 flex-shrink-0"
         >
           <option value="">All Status</option>
           <option value="true">Active</option>
@@ -447,7 +447,7 @@ export default function AdminUsersPage() {
         {hasFilters && (
           <button
             onClick={resetFilters}
-            className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 flex-shrink-0"
           >
             <X className="w-3.5 h-3.5" />
             Reset

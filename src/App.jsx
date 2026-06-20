@@ -61,7 +61,7 @@ const App = () => {
                   <Route path="airlines" element={<AdminAirlinesPage />} />
                   <Route path="airports" element={<AdminAirportsPage />} />
                   <Route path="notifications" element={<AdminNotificationsPage />} />
-                  <Route path="analytics" element={<ComingSoon title="Analytics" />} />
+                  <Route path="analytics" element={<Navigate to="/admin/reports" replace />} />
                   <Route path="settings" element={<ComingSoon title="Settings" />} />
                 </Route>
               </Route>
