@@ -7,7 +7,7 @@ const createAxiosInstance = (subPath = '') => {
     baseURL: `${BASE_URL}${subPath}`,
     headers: { 'Content-Type': 'application/json' },
     withCredentials: true,
-    timeout: 30000,
+    timeout: 60000,
   });
 
   instance.interceptors.request.use(

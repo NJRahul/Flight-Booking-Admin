@@ -95,6 +95,7 @@ export default function AdminDashboardPage() {
   const [revPeriod, setRevPeriod] = useState('30d');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [slowLoad, setSlowLoad] = useState(false);
   const debounceRef = useRef(null);
 
   const { isConnected, lastEvent } = useAdminSocket();
@@ -125,6 +126,12 @@ export default function AdminDashboardPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  useEffect(() => {
+    if (!loading) { setSlowLoad(false); return; }
+    const t = setTimeout(() => setSlowLoad(true), 8000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   // Auto-refresh KPIs when an admin:stats event arrives (debounced 3s)
   useEffect(() => {
     if (!lastEvent) return;
@@ -144,7 +151,17 @@ export default function AdminDashboardPage() {
     return () => clearTimeout(debounceRef.current);
   }, [lastEvent]);
 
-  if (loading) return <LoadingSkeleton />;
+  if (loading) return (
+    <>
+      <LoadingSkeleton />
+      {slowLoad && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm px-5 py-2.5 rounded-2xl shadow-lg z-50 flex items-center gap-2">
+          <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse shrink-0" />
+          Server is starting up — data will appear shortly…
+        </div>
+      )}
+    </>
+  );
 
   if (fetchError) return (
     <div className="min-h-[400px] flex items-center justify-center">

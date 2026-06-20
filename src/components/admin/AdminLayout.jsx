@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import AdminGlobalSearch from './AdminGlobalSearch';
 import {
@@ -116,27 +116,6 @@ function SidebarContent({ onNavClick, logout }) {
   );
 }
 
-function Breadcrumb() {
-  const location = useLocation();
-  const segments = location.pathname
-    .split('/')
-    .filter(Boolean)
-    .map(seg => seg.charAt(0).toUpperCase() + seg.slice(1));
-
-  return (
-    <nav className="flex items-center gap-1.5 text-sm text-gray-500">
-      {segments.map((seg, i) => (
-        <span key={i} className="flex items-center gap-1.5">
-          {i > 0 && <span className="text-gray-300">/</span>}
-          <span className={i === segments.length - 1 ? 'font-semibold text-gray-800' : ''}>
-            {seg}
-          </span>
-        </span>
-      ))}
-    </nav>
-  );
-}
-
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -164,9 +143,9 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 min-h-screen bg-slate-900 fixed left-0 top-0 bottom-0 flex-col z-30">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      {/* Desktop Sidebar — flex item, not fixed */}
+      <aside className="hidden lg:flex w-64 flex-shrink-0 flex-col bg-slate-900 z-30">
         <SidebarContent onNavClick={undefined} logout={handleLogout} />
       </aside>
 
@@ -198,62 +177,64 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      {/* Top Navbar */}
-      <header className="h-14 bg-white border-b border-gray-100 ml-0 lg:ml-64 sticky top-0 z-20 flex items-center px-4 gap-3">
-        <button
-          className="lg:hidden text-gray-500 hover:text-gray-700 p-1 transition-colors"
-          onClick={() => setSidebarOpen(true)}
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-
-        <div className="flex-1 px-3">
+      {/* Right Column: header + scrollable content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top Navbar */}
+        <header className="h-14 flex-shrink-0 bg-white border-b border-gray-100 z-20 flex items-center px-4 gap-3">
           <button
-            onClick={() => setSearchOpen(true)}
-            className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm text-gray-400 transition-colors w-full max-w-md"
+            className="lg:hidden text-gray-500 hover:text-gray-700 p-1 transition-colors"
+            onClick={() => setSidebarOpen(true)}
           >
-            <Search className="w-4 h-4 shrink-0" />
-            <span className="flex-1 text-left truncate">Search flights, bookings, users...</span>
-            <kbd className="text-xs bg-white border border-gray-200 rounded px-1.5 py-0.5 font-mono shrink-0">
-              Ctrl K
-            </kbd>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="md:hidden p-2 text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            <Search className="w-5 h-5" />
+            <Menu className="w-5 h-5" />
           </button>
 
-          <button className="relative p-2 text-gray-500 hover:text-gray-700 transition-colors">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-          </button>
+          <div className="flex-1 px-3">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm text-gray-400 transition-colors w-full max-w-md"
+            >
+              <Search className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left truncate">Search flights, bookings, users...</span>
+              <kbd className="text-xs bg-white border border-gray-200 rounded px-1.5 py-0.5 font-mono shrink-0">
+                Ctrl K
+              </kbd>
+            </button>
+          </div>
 
-          <div className="flex items-center gap-2 pl-2 border-l border-gray-100">
-            <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
-              {initials}
-            </div>
-            <div className="hidden sm:block">
-              <p className="text-sm font-medium text-gray-800 leading-none max-w-[120px] truncate">
-                {user?.name}
-              </p>
-              <p className="text-xs text-gray-400 leading-tight mt-0.5">Admin</p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="md:hidden p-2 text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              <Search className="w-5 h-5" />
+            </button>
+
+            <button className="relative p-2 text-gray-500 hover:text-gray-700 transition-colors">
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+            </button>
+
+            <div className="flex items-center gap-2 pl-2 border-l border-gray-100">
+              <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
+                {initials}
+              </div>
+              <div className="hidden sm:block">
+                <p className="text-sm font-medium text-gray-800 leading-none max-w-[120px] truncate">
+                  {user?.name}
+                </p>
+                <p className="text-xs text-gray-400 leading-tight mt-0.5">Admin</p>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content */}
-      <main className="ml-0 lg:ml-64 min-h-screen bg-gray-50">
-        <div className="h-14" />
-        <div className="px-6 pb-6 pt-3">
-          <Outlet />
-        </div>
-      </main>
+        {/* Scrollable content — separate scroll container, header never overlaps */}
+        <main className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="px-6 py-5">
+            <Outlet />
+          </div>
+        </main>
+      </div>
 
       {/* Global Search */}
       <AdminGlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
