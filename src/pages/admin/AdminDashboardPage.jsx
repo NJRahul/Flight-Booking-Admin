@@ -94,7 +94,7 @@ export default function AdminDashboardPage() {
   const [recentUsers, setRecentUsers] = useState([]);
   const [revPeriod, setRevPeriod] = useState('30d');
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
   const [slowLoad, setSlowLoad] = useState(false);
   const debounceRef = useRef(null);
 
@@ -102,7 +102,7 @@ export default function AdminDashboardPage() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    setFetchError(false);
+    setFetchError(null);
     try {
       const [statsRes, revRes, routesRes, bookingsRes, usersRes] = await Promise.all([
         adminApi.get('/stats'),
@@ -118,7 +118,7 @@ export default function AdminDashboardPage() {
       setRecentUsers(usersRes.data.data?.users || []);
     } catch (e) {
       console.error(e);
-      setFetchError(true);
+      setFetchError(e.response?.data?.error || e.message || 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -165,9 +165,10 @@ export default function AdminDashboardPage() {
 
   if (fetchError) return (
     <div className="min-h-[400px] flex items-center justify-center">
-      <div className="text-center">
-        <p className="text-gray-500 mb-1 text-sm font-medium">Failed to load dashboard data</p>
-        <p className="text-gray-400 text-xs mb-5">The server may be starting up — please wait a moment and try again.</p>
+      <div className="text-center max-w-sm">
+        <p className="text-gray-700 mb-1 text-sm font-semibold">Failed to load dashboard data</p>
+        <p className="text-red-500 text-xs font-mono mb-1 break-all">{fetchError}</p>
+        <p className="text-gray-400 text-xs mb-5">If this says "Too many requests", wait 15 min and retry. Otherwise the server may still be starting.</p>
         <button
           onClick={fetchAll}
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
