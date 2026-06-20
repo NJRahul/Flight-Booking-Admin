@@ -250,7 +250,7 @@ export default function AdminLayout() {
       {/* Main Content */}
       <main className="ml-0 lg:ml-64 min-h-screen bg-gray-50">
         <div className="h-14" />
-        <div className="p-6 pt-4">
+        <div className="px-6 pb-6 pt-3">
           <Outlet />
         </div>
       </main>
