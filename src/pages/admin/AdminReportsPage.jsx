@@ -149,7 +149,7 @@ export default function AdminReportsPage() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 font-display">Reports &amp; Analytics</h1>
+          <h1 className="text-2xl font-bold text-gray-900 font-display">Analytics</h1>
           {lastRefreshed && (
             <p className="text-xs text-gray-400 mt-0.5">
               Last updated {secondsAgo}s ago
