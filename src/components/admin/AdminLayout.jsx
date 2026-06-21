@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import AdminGlobalSearch from './AdminGlobalSearch';
 import {
   LayoutDashboard, BarChart2, Plane, ClipboardList, Users, Shield, MapPin,
-  Bell, FileText, Settings, LogOut, ExternalLink, Menu, X, Search,
+  Bell, FileText, Settings, LogOut, Menu, X, Search, AlertTriangle,
 } from 'lucide-react';
 
 const navGroups = [
@@ -40,7 +40,7 @@ const navGroups = [
   },
 ];
 
-function SidebarContent({ onNavClick, logout }) {
+function SidebarContent({ onNavClick, onLogoutClick }) {
   const { user } = useAuthStore();
   const initials = user?.name
     ? user.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -95,17 +95,9 @@ function SidebarContent({ onNavClick, logout }) {
         ))}
       </nav>
 
-      <div className="border-t border-slate-700 p-4 space-y-1 shrink-0">
-        <Link
-          to="/"
-          onClick={onNavClick}
-          className="flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white"
-        >
-          <ExternalLink className="w-4 h-4 shrink-0" />
-          <span>Back to Website</span>
-        </Link>
+      <div className="border-t border-slate-700 p-4 shrink-0">
         <button
-          onClick={logout}
+          onClick={onLogoutClick}
           className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-red-400"
         >
           <LogOut className="w-4 h-4 shrink-0" />
@@ -119,6 +111,7 @@ function SidebarContent({ onNavClick, logout }) {
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
@@ -142,11 +135,16 @@ export default function AdminLayout() {
     navigate('/login');
   };
 
+  const handleLogoutClick = () => {
+    setSidebarOpen(false);
+    setLogoutConfirm(true);
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Desktop Sidebar — flex item, not fixed */}
       <aside className="hidden lg:flex w-64 flex-shrink-0 flex-col bg-slate-900 z-30">
-        <SidebarContent onNavClick={undefined} logout={handleLogout} />
+        <SidebarContent onNavClick={undefined} onLogoutClick={handleLogoutClick} />
       </aside>
 
       {/* Mobile Sidebar Overlay */}
@@ -173,7 +171,7 @@ export default function AdminLayout() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <SidebarContent onNavClick={() => setSidebarOpen(false)} logout={handleLogout} />
+          <SidebarContent onNavClick={() => setSidebarOpen(false)} onLogoutClick={handleLogoutClick} />
         </div>
       </aside>
 
@@ -238,6 +236,44 @@ export default function AdminLayout() {
 
       {/* Global Search */}
       <AdminGlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+
+      {/* Logout Confirmation Modal */}
+      {logoutConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setLogoutConfirm(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">Sign out of Admin?</p>
+                <p className="text-xs text-gray-500 mt-0.5">You'll need to log in again to access the dashboard.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                onClick={() => setLogoutConfirm(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors flex items-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
