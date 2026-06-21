@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import AdminGlobalSearch from './AdminGlobalSearch';
 import {
   LayoutDashboard, BarChart2, Plane, ClipboardList, Users, Shield, MapPin,
-  Bell, Settings, LogOut, Menu, X, Search, AlertTriangle,
+  Bell, LogOut, Menu, X, Search, AlertTriangle,
 } from 'lucide-react';
 
 const navGroups = [
@@ -34,7 +34,6 @@ const navGroups = [
     label: 'SYSTEM',
     items: [
       { to: '/admin/notifications', icon: Bell, label: 'Notifications' },
-      { to: '/admin/settings', icon: Settings, label: 'Settings' },
     ],
   },
 ];
